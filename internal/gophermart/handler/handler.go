@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
-	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/config"
+	"github.com/iamamatkazin/diploma-tpl/internal/config"
 )
 
 type Handler struct {

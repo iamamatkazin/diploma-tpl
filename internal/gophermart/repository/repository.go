@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/config"
+	"github.com/iamamatkazin/diploma-tpl/internal/config"
 	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/repository/postgresql"
 )
 

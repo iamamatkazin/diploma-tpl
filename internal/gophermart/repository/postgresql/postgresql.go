@@ -1,22 +1,29 @@
 package postgresql
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"log/slog"
+	"time"
+
+	"github.com/iamamatkazin/diploma-tpl/internal/accrual"
+	"github.com/iamamatkazin/diploma-tpl/internal/config"
+	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/model"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/config"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 type Storage struct {
-	cfg *config.Config
-	db  *sql.DB
+	cfg     *config.Config
+	db      *sql.DB
+	agent   *accrual.Accrual
+	chOrder chan model.UserOrder
 }
 
 func New(cfg *config.Config) (*Storage, error) {
@@ -32,8 +39,10 @@ func New(cfg *config.Config) (*Storage, error) {
 	loadMigrations(db)
 
 	return &Storage{
-		cfg: cfg,
-		db:  db,
+		cfg:     cfg,
+		db:      db,
+		agent:   accrual.New(cfg),
+		chOrder: make(chan model.UserOrder),
 	}, nil
 }
 
@@ -72,6 +81,29 @@ func isRetryablePgError(err error) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func retryableExec(ctx context.Context, tx *sql.Tx, query string, args ...any) error {
+	timerRetryable := time.NewTimer(0)
+	count := 0
+
+	for {
+		select {
+		case <-ctx.Done():
+		case <-timerRetryable.C:
+			_, err := tx.ExecContext(ctx, query, args)
+			if err != nil {
+				if !isRetryablePgError(err) || count > 3 {
+					return err
+				}
+
+				timerRetryable.Reset(time.Duration(2*count+1) * time.Second)
+				count++
+			}
+
+			return nil
+		}
 	}
 }
 
