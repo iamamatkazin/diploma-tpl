@@ -22,6 +22,10 @@ func New(ctx context.Context, cfg *config.Config) (*Storage, error) {
 		return nil, err
 	}
 
+	if err = dbStor.Run(ctx); err != nil {
+		return nil, err
+	}
+
 	s := &Storage{
 		cfg:     cfg,
 		storage: dbStor,

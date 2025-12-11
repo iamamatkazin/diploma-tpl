@@ -107,6 +107,29 @@ func retryableExec(ctx context.Context, tx *sql.Tx, query string, args ...any) e
 	}
 }
 
+func retryableQuery(ctx context.Context, db *sql.DB, query string, args ...any) (*sql.Rows, error) {
+	timerRetryable := time.NewTimer(0)
+	count := 0
+
+	for {
+		select {
+		case <-ctx.Done():
+		case <-timerRetryable.C:
+			rows, err := db.QueryContext(ctx, query, args)
+			if err != nil {
+				if !isRetryablePgError(err) || count > 3 {
+					return nil, err
+				}
+
+				timerRetryable.Reset(time.Duration(2*count+1) * time.Second)
+				count++
+			}
+
+			return rows, nil
+		}
+	}
+}
+
 func (s *Storage) Shutdown() {
 	if s.db != nil {
 		s.db.Close()

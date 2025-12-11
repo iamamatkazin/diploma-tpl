@@ -8,23 +8,24 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/iamamatkazin/diploma-tpl/internal/config"
+	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/repository"
 )
 
 type Handler struct {
-	// storage repository.Storager
-	Router *chi.Mux
-	cfg    *config.Config
+	storage repository.Storager
+	Router  *chi.Mux
+	cfg     *config.Config
 }
 
 func New(ctx context.Context, cfg *config.Config) (*Handler, error) {
-	// storage, err := repository.New(ctx, cfg)
-	// if err != nil {
-	// 	return nil, err
-	// }
+	storage, err := repository.New(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
 
 	h := &Handler{
-		// storage: storage,
-		cfg: cfg,
+		storage: storage,
+		cfg:     cfg,
 	}
 
 	h.Router = chi.NewRouter()

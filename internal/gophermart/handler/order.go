@@ -3,6 +3,7 @@ package handler
 import "net/http"
 
 func (h *Handler) loadOrder(w http.ResponseWriter, r *http.Request) {
+
 	/*
 		200 — номер заказа уже был загружен этим пользователем;
 		202 — новый номер заказа принят в обработку;
