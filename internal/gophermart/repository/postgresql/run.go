@@ -7,15 +7,22 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/common"
 	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/model"
 )
 
+type Accrual struct {
+	Order   string       `json:"order"`
+	Status  model.Status `json:"status"`
+	Accrual *float64     `json:"accrual,omitempty"`
+}
+
 func (s *Storage) Run(ctx context.Context) error {
+	go s.worker(ctx)
+
 	if err := s.restartPolling(ctx); err != nil {
 		return err
 	}
-
-	go s.worker(ctx)
 
 	return nil
 }
@@ -41,6 +48,7 @@ func (s *Storage) worker(ctx context.Context) {
 
 func (s *Storage) analyzeResponse(ctx context.Context, order model.UserOrder) {
 	timerPoll := time.NewTimer(0)
+	defer timerPoll.Stop()
 
 	for {
 		select {
@@ -57,10 +65,16 @@ func (s *Storage) analyzeResponse(ctx context.Context, order model.UserOrder) {
 
 			switch code {
 			case http.StatusOK:
-				var accrual model.Accrual
-				if err := json.Unmarshal(data, &accrual); err != nil {
+				var externalAccrual Accrual
+				if err := json.Unmarshal(data, &externalAccrual); err != nil {
 					slog.Error("Ошибка получения данных от системы расчета баллов", slog.Any("error", err))
 					return
+				}
+
+				accrual := model.Accrual{
+					Order:   externalAccrual.Order,
+					Status:  externalAccrual.Status,
+					Accrual: common.PtFloatToInt(externalAccrual.Accrual),
 				}
 
 				if err := s.updateOrder(ctx, accrual, order); err != nil {

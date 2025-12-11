@@ -20,6 +20,7 @@ type Accrual struct {
 
 func New(cfg *config.Config) *Accrual {
 	return &Accrual{
+		cfg: cfg,
 		client: &http.Client{
 			Timeout:   timeout,
 			Transport: &http.Transport{},
@@ -27,10 +28,10 @@ func New(cfg *config.Config) *Accrual {
 	}
 }
 
-func (a *Accrual) Get(ctx context.Context, order model.UserOrder) ([]byte, int, error) {
-	url := fmt.Sprintf("http://%s/api/orders/%s", a.cfg.Address, order)
+func (a *Accrual) Get(ctx context.Context, order model.UserOrder) (data []byte, code int, err error) {
+	url := fmt.Sprintf("http://%s/api/orders/%s", a.cfg.AccAddress, order.Order)
 
-	data, code, err := a.get(ctx, url, "application/json")
+	data, code, err = a.get(ctx, url, "application/json")
 	if err != nil {
 		return nil, 0, err
 	}
@@ -38,7 +39,7 @@ func (a *Accrual) Get(ctx context.Context, order model.UserOrder) ([]byte, int, 
 	return data, code, nil
 }
 
-func (c *Accrual) get(ctx context.Context, url, contentType string) ([]byte, int, error) {
+func (a *Accrual) get(ctx context.Context, url, contentType string) (data []byte, code int, err error) {
 	request, err := newRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return nil, 0, err
@@ -47,13 +48,13 @@ func (c *Accrual) get(ctx context.Context, url, contentType string) ([]byte, int
 	request.Header.Set("Content-Type", contentType)
 
 	// отправляем запрос и получаем ответ
-	response, err := c.client.Do(request)
+	response, err := a.client.Do(request)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer response.Body.Close()
 
-	data, err := io.ReadAll(response.Body)
+	data, err = io.ReadAll(response.Body)
 	if err != nil {
 		return nil, 0, err
 	}

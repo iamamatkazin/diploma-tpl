@@ -7,12 +7,18 @@ import (
 )
 
 func (s *Storage) loadUnprocessedOrders(ctx context.Context) ([]model.UserOrder, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
 	query := `
 		SELECT login, number FROM orders
-		WHERE status <> 'PROCESSED' or status <> 'INVALID' 
+		WHERE status != 'PROCESSED' AND status != 'INVALID' 
 	`
 
-	rows, err := retryableQuery(ctx, s.db, query)
+	rows, err := retryableQuery(ctx, tx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -34,6 +40,8 @@ func (s *Storage) loadUnprocessedOrders(ctx context.Context) ([]model.UserOrder,
 	if err != nil {
 		return nil, err
 	}
+
+	tx.Commit()
 
 	return orders, nil
 }

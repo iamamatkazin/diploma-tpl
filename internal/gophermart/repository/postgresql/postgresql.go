@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -28,7 +29,7 @@ type Storage struct {
 
 func New(cfg *config.Config) (*Storage, error) {
 	if cfg.Database == "" {
-		return &Storage{cfg: cfg}, nil
+		return &Storage{cfg: cfg}, fmt.Errorf("не возможно соединиться с базой данных")
 	}
 
 	db, err := sql.Open("pgx", cfg.Database)
@@ -92,7 +93,7 @@ func retryableExec(ctx context.Context, tx *sql.Tx, query string, args ...any) e
 		select {
 		case <-ctx.Done():
 		case <-timerRetryable.C:
-			_, err := tx.ExecContext(ctx, query, args)
+			_, err := tx.ExecContext(ctx, query, args...)
 			if err != nil {
 				if !isRetryablePgError(err) || count > 3 {
 					return err
@@ -107,7 +108,12 @@ func retryableExec(ctx context.Context, tx *sql.Tx, query string, args ...any) e
 	}
 }
 
-func retryableQuery(ctx context.Context, db *sql.DB, query string, args ...any) (*sql.Rows, error) {
+func retryableQuery(ctx context.Context, tx *sql.Tx, query string, args ...any) (*sql.Rows, error) {
+	var (
+		rows *sql.Rows
+		err  error
+	)
+
 	timerRetryable := time.NewTimer(0)
 	count := 0
 
@@ -115,7 +121,11 @@ func retryableQuery(ctx context.Context, db *sql.DB, query string, args ...any) 
 		select {
 		case <-ctx.Done():
 		case <-timerRetryable.C:
-			rows, err := db.QueryContext(ctx, query, args)
+			if len(args) == 0 {
+				rows, err = tx.QueryContext(ctx, query)
+			} else {
+				rows, err = tx.QueryContext(ctx, query, args...)
+			}
 			if err != nil {
 				if !isRetryablePgError(err) || count > 3 {
 					return nil, err

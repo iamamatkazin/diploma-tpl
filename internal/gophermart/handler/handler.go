@@ -2,16 +2,22 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 
-	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/jwtauth/v5"
+
 	"github.com/iamamatkazin/diploma-tpl/internal/config"
 	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/repository"
+	"github.com/iamamatkazin/diploma-tpl/internal/pkg/custerror"
 )
 
 type Handler struct {
+	token   *jwtauth.JWTAuth
 	storage repository.Storager
 	Router  *chi.Mux
 	cfg     *config.Config
@@ -26,6 +32,7 @@ func New(ctx context.Context, cfg *config.Config) (*Handler, error) {
 	h := &Handler{
 		storage: storage,
 		cfg:     cfg,
+		token:   jwtauth.New("HS256", []byte(cfg.SecretKey), nil),
 	}
 
 	h.Router = chi.NewRouter()
@@ -35,13 +42,20 @@ func New(ctx context.Context, cfg *config.Config) (*Handler, error) {
 }
 
 func (h *Handler) listRoute() {
-	h.Router.With(middleware.AllowContentType("application/json")).Post("/api/user/register", h.registerUser)
-	h.Router.With(middleware.AllowContentType("application/json")).Post("/api/user/login", h.loginUser)
-	h.Router.With(middleware.AllowContentType("text/plain")).Post("/api/user/orders", h.loadOrder)
-	h.Router.With(middleware.AllowContentType("application/json")).Get("/api/user/orders", h.listOrders)
-	h.Router.With(middleware.AllowContentType("application/json")).Get("/api/user/balance", h.getBalance)
-	h.Router.With(middleware.AllowContentType("application/json")).Post("/api/user/balance/withdraw", h.withdrawBalance)
-	h.Router.With(middleware.AllowContentType("application/json")).Get("/api/user/withdrawals", h.listWithdrawals)
+	h.Router.Use(middleware.AllowContentType("application/json", "text/plain"))
+	h.Router.Route("/api/user", func(r chi.Router) {
+		r.Post("/register", h.registerUser)
+		r.Post("/login", h.loginUser)
+
+		r.Use(jwtauth.Verifier(h.token))
+		r.Use(jwtauth.Authenticator(h.token))
+
+		r.Post("/orders", h.loadOrder)
+		r.Get("/orders", h.listOrders)
+		r.Get("/balance", h.getBalance)
+		r.Post("/balance/withdraw", h.withdrawBalance)
+		r.Get("/withdrawals", h.listWithdrawals)
+	})
 
 	h.Router.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
@@ -54,6 +68,10 @@ func (h *Handler) listRoute() {
 	})
 }
 
+func (h *Handler) Shutdown() {
+	h.storage.Shutdown()
+}
+
 func writeText(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(status)
@@ -63,24 +81,40 @@ func writeText(w http.ResponseWriter, status int, message string) {
 	}
 }
 
-func writeJSON(w http.ResponseWriter, status int, body []byte) {
+func writeJSON(w http.ResponseWriter, status int, body any) {
+	b, err := json.Marshal(body)
+	if err != nil {
+		slog.Error("Ошибка отправки ответа:", slog.Any("error", err))
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 
-	if _, err := w.Write(body); err != nil {
+	if _, err := w.Write(b); err != nil {
 		slog.Error("Ошибка отправки ответа:", slog.Any("error", err))
 	}
 }
 
-func writeHTML(w http.ResponseWriter, status int, html string) {
+func writeError(w http.ResponseWriter, err error) {
+	code, mes := parsingError(err)
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(status)
+	w.WriteHeader(code)
 
-	if _, err := w.Write([]byte(html)); err != nil {
+	if _, err := w.Write([]byte(mes)); err != nil {
 		slog.Error("Ошибка отправки ответа:", slog.Any("error", err))
 	}
 }
 
-func (h *Handler) Shutdown() {
-	// h.storage.Shutdown()
+func parsingError(err error) (code int, mes string) {
+	var e *custerror.Error
+
+	if errors.As(err, &e) {
+		code = e.Code
+	} else {
+		code = http.StatusInternalServerError
+	}
+
+	return code, err.Error()
 }

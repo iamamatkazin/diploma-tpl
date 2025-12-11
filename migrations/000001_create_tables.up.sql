@@ -5,7 +5,7 @@ CREATE TYPE public.order_status_enum AS ENUM (
 
 -- Создание таблицы заказов
 CREATE TABLE orders (
-    number TEXT PRIMARY KEY NOT NULL,
+    number TEXT UNIQUE PRIMARY KEY NOT NULL,
     login TEXT NOT NULL,
     status order_status_enum NOT NULL,
     accrual BIGINT,
@@ -16,7 +16,7 @@ CREATE TABLE orders (
 
 -- Создание таблицы пользователей
 CREATE TABLE users (				
-    login TEXT  NOT NULL,
+    login TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
     current BIGINT NOT NULL,
     withdrawn BIGINT NOT NULL
