@@ -29,13 +29,14 @@ func New(cfg *config.Config) *Accrual {
 }
 
 func (a *Accrual) Get(ctx context.Context, order model.UserOrder) (data []byte, code int, err error) {
-	url := fmt.Sprintf("http://%s/api/orders/%s", a.cfg.AccAddress, order.Order)
+	url := fmt.Sprintf("%s/api/orders/%s", a.cfg.AccAddress, order.Order)
 
 	data, code, err = a.get(ctx, url, "application/json")
 	if err != nil {
 		return nil, 0, err
 	}
 
+	fmt.Println("##########", url, code, string(data))
 	return data, code, nil
 }
 

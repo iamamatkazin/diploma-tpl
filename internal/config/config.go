@@ -1,7 +1,9 @@
 package config
 
 import (
+	"encoding/json"
 	"flag"
+	"fmt"
 
 	"github.com/caarlos0/env/v11"
 )
@@ -16,7 +18,7 @@ type Config struct {
 func New() (*Config, error) {
 	address := flag.String("a", "localhost:8081", "адрес эндпоинта HTTP-сервера")
 	database := flag.String("d", "host=localhost user=postgres password=postgres dbname=diplom sslmode=disable", "строка с адресом подключения к БД")
-	accAddress := flag.String("r", "localhost:8080", "адрес системы расчёта начислений")
+	accAddress := flag.String("r", "http://localhost:8080", "адрес системы расчёта начислений")
 	flag.Parse()
 
 	cfg := &Config{
@@ -30,5 +32,7 @@ func New() (*Config, error) {
 		return nil, err
 	}
 
+	b, _ := json.Marshal(cfg)
+	fmt.Println("@@@@@@@@@@@", string(b))
 	return cfg, nil
 }

@@ -1,15 +1,21 @@
 package handler
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/ShiraazMoollatjie/goluhn"
+
 	"github.com/iamamatkazin/diploma-tpl/internal/pkg/custerror"
 )
 
 func (h *Handler) loadOrder(w http.ResponseWriter, r *http.Request) {
-	login := "test"
+	login, err := h.getLogin(r)
+	if err != nil {
+		writeError(w, custerror.New(http.StatusUnauthorized, err.Error()))
+		return
+	}
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -29,6 +35,7 @@ func (h *Handler) loadOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Println("##########", login, currentLogin, order)
 	switch {
 	case currentLogin == "":
 		writeText(w, http.StatusAccepted, "новый номер заказа принят в обработку")
@@ -54,7 +61,11 @@ func (h *Handler) loadOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listOrders(w http.ResponseWriter, r *http.Request) {
-	login := "test"
+	login, err := h.getLogin(r)
+	if err != nil {
+		writeError(w, custerror.New(http.StatusUnauthorized, err.Error()))
+		return
+	}
 
 	list, err := h.storage.ListOrders(r.Context(), login)
 	if err != nil {
@@ -62,8 +73,9 @@ func (h *Handler) listOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Println("$$$$$$", login, len(list))
 	if len(list) == 0 {
-		writeError(w, custerror.New(http.StatusNoContent, "нет данных для ответа"))
+		writeError(w, custerror.New(http.StatusNoContent, ""))
 		return
 	}
 

@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/jwtauth/v5"
 
 	"github.com/iamamatkazin/diploma-tpl/internal/config"
@@ -42,11 +41,11 @@ func New(ctx context.Context, cfg *config.Config) (*Handler, error) {
 }
 
 func (h *Handler) listRoute() {
-	h.Router.Use(middleware.AllowContentType("application/json", "text/plain"))
-	h.Router.Route("/api/user", func(r chi.Router) {
-		r.Post("/register", h.registerUser)
-		r.Post("/login", h.loginUser)
+	// h.Router.Use(middleware.AllowContentType("application/json", "text/plain"))
+	h.Router.Post("/api/user/register", h.registerUser)
+	h.Router.Post("/api/user/login", h.loginUser)
 
+	h.Router.Route("/api/user", func(r chi.Router) {
 		r.Use(jwtauth.Verifier(h.token))
 		r.Use(jwtauth.Authenticator(h.token))
 
@@ -102,8 +101,10 @@ func writeError(w http.ResponseWriter, err error) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(code)
 
-	if _, err := w.Write([]byte(mes)); err != nil {
-		slog.Error("Ошибка отправки ответа:", slog.Any("error", err))
+	if code != http.StatusNoContent {
+		if _, err := w.Write([]byte(mes)); err != nil {
+			slog.Error("writeError: ошибка отправки ответа:", slog.Any("error", err))
+		}
 	}
 }
 
@@ -117,4 +118,13 @@ func parsingError(err error) (code int, mes string) {
 	}
 
 	return code, err.Error()
+}
+
+func (h *Handler) getLogin(r *http.Request) (string, error) {
+	_, claims, err := jwtauth.FromContext(r.Context())
+	if err != nil {
+		return "", err
+	}
+
+	return claims["login"].(string), nil
 }

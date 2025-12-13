@@ -10,13 +10,12 @@ import (
 	"github.com/iamamatkazin/diploma-tpl/internal/pkg/custerror"
 )
 
-type Withdraw struct {
-	Order string  `json:"order"`
-	Sum   float64 `json:"sum"`
-}
-
 func (h *Handler) getBalance(w http.ResponseWriter, r *http.Request) {
-	login := "test"
+	login, err := h.getLogin(r)
+	if err != nil {
+		writeError(w, custerror.New(http.StatusUnauthorized, err.Error()))
+		return
+	}
 
 	balance, err := h.storage.GetBalance(r.Context(), login)
 	if err != nil {
@@ -24,6 +23,8 @@ func (h *Handler) getBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	b, _ := json.Marshal(balance)
+	fmt.Println("########2222####", login, string(b))
 	writeJSON(w, http.StatusOK, balance)
 
 	/*
@@ -34,22 +35,21 @@ func (h *Handler) getBalance(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) withdrawBalance(w http.ResponseWriter, r *http.Request) {
-	login := "test"
+	login, err := h.getLogin(r)
+	if err != nil {
+		writeError(w, custerror.New(http.StatusUnauthorized, err.Error()))
+		return
+	}
 
-	var externalWithdraw Withdraw
-	if err := json.NewDecoder(r.Body).Decode(&externalWithdraw); err != nil {
+	var withdraw model.Withdraw
+	if err := json.NewDecoder(r.Body).Decode(&withdraw); err != nil {
 		writeError(w, custerror.New(http.StatusBadRequest, err.Error()))
 		return
 	}
 
-	if err := goluhn.Validate(externalWithdraw.Order); err != nil {
+	if err := goluhn.Validate(withdraw.Order); err != nil {
 		writeError(w, custerror.New(http.StatusUnprocessableEntity, err.Error()))
 		return
-	}
-
-	withdraw := model.Withdraw{
-		Order: externalWithdraw.Order,
-		Sum:   int(externalWithdraw.Sum * 100),
 	}
 
 	code, err := h.storage.WithdrawBalance(r.Context(), login, withdraw)
@@ -77,7 +77,11 @@ func (h *Handler) withdrawBalance(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listWithdrawals(w http.ResponseWriter, r *http.Request) {
-	login := "test"
+	login, err := h.getLogin(r)
+	if err != nil {
+		writeError(w, custerror.New(http.StatusUnauthorized, err.Error()))
+		return
+	}
 
 	list, err := h.storage.ListWithdrawals(r.Context(), login)
 	if err != nil {
@@ -86,7 +90,7 @@ func (h *Handler) listWithdrawals(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(list) == 0 {
-		writeError(w, custerror.New(http.StatusNoContent, "нет ни одного списания"))
+		writeError(w, custerror.New(http.StatusNoContent, ""))
 		return
 	}
 

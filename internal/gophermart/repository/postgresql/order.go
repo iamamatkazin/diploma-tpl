@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/model"
@@ -25,6 +27,11 @@ func (s *Storage) LoadOrder(ctx context.Context, login, order string) (currentLo
 
 	tx.Commit()
 
+	select {
+	case s.chOrder <- model.UserOrder{Login: login, Order: order}:
+	default:
+		slog.Info("Занят канал отправки заказа в систему расчета начислений")
+	}
 	return currentLogin, nil
 }
 
@@ -56,6 +63,8 @@ func loadOrder(ctx context.Context, tx *sql.Tx, login, order string) error {
 }
 
 func (s *Storage) ListOrders(ctx context.Context, login string) ([]model.Order, error) {
+	var accrual sql.NullFloat64
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -69,6 +78,7 @@ func (s *Storage) ListOrders(ctx context.Context, login string) ([]model.Order, 
 
 	rows, err := retryableQuery(ctx, tx, query, login)
 	if err != nil {
+		fmt.Println("&&&&& retryableQuery", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -77,9 +87,14 @@ func (s *Storage) ListOrders(ctx context.Context, login string) ([]model.Order, 
 	orders := make([]model.Order, 0)
 	for rows.Next() {
 		var order model.Order
-		err = rows.Scan(&order.Number, &order.Status, &order.Accrual, &order.UploadedAt)
+		err = rows.Scan(&order.Number, &order.Status, &accrual, &order.UploadedAt)
 		if err != nil {
+			fmt.Println("&&&&& rows.Scan", err)
 			return nil, err
+		}
+
+		if accrual.Valid {
+			order.Accrual = accrual.Float64 / 100
 		}
 
 		orders = append(orders, order)
@@ -87,6 +102,7 @@ func (s *Storage) ListOrders(ctx context.Context, login string) ([]model.Order, 
 
 	err = rows.Err()
 	if err != nil {
+		fmt.Println("&&&&& rows.Err", err)
 		return nil, err
 	}
 
