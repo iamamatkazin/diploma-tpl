@@ -3,6 +3,8 @@ package postgresql
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -37,6 +39,9 @@ func getBalance(ctx context.Context, tx *sql.Tx, login string) (model.Balance, e
 		return model.Balance{}, err
 	}
 
+	balance.Current /= 100
+	balance.Withdrawn /= 100
+
 	return balance, nil
 }
 
@@ -51,6 +56,10 @@ func (s *Storage) WithdrawBalance(ctx context.Context, login string, withdraw mo
 	if err != nil {
 		return 0, err
 	}
+
+	b, _ := json.Marshal(balance)
+	b1, _ := json.Marshal(withdraw)
+	fmt.Println("@@@WithdrawBalance@@@", string(b), string(b1))
 
 	if balance.Current < withdraw.Sum {
 		return http.StatusPaymentRequired, nil
@@ -80,14 +89,14 @@ func updateOrderSum(ctx context.Context, tx *sql.Tx, withdraw model.Withdraw) er
 	return retryableExec(ctx, tx, query, withdraw.Order, withdraw.Sum, time.Now().Local())
 }
 
-func updateBalance(ctx context.Context, tx *sql.Tx, login string, sum int) error {
+func updateBalance(ctx context.Context, tx *sql.Tx, login string, sum float64) error {
 	query := `
 		UPDATE users SET 
 			current = users.current - $2,
 			withdrawn = users.withdrawn + $3
     	WHERE login = $1
 	`
-
+	sum *= 100
 	return retryableExec(ctx, tx, query, login, sum, sum)
 }
 
@@ -100,7 +109,7 @@ func (s *Storage) ListWithdrawals(ctx context.Context, login string) ([]model.Wi
 
 	query := `
 		SELECT number, sum, processed_at FROM orders
-		WHERE login = $1 AND sum > 0
+		WHERE login = $1
 	`
 
 	rows, err := retryableQuery(ctx, tx, query, login)
@@ -118,9 +127,12 @@ func (s *Storage) ListWithdrawals(ctx context.Context, login string) ([]model.Wi
 			return nil, err
 		}
 
+		order.Sum /= 100
 		orders = append(orders, order)
 	}
 
+	b, _ := json.Marshal(orders)
+	fmt.Println("!!!ListWithdrawals!!!", string(b))
 	err = rows.Err()
 	if err != nil {
 		return nil, err
