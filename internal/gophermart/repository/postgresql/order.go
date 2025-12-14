@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -78,7 +77,6 @@ func (s *Storage) ListOrders(ctx context.Context, login string) ([]model.Order, 
 
 	rows, err := retryableQuery(ctx, tx, query, login)
 	if err != nil {
-		fmt.Println("&&&&& retryableQuery", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -89,7 +87,6 @@ func (s *Storage) ListOrders(ctx context.Context, login string) ([]model.Order, 
 		var order model.Order
 		err = rows.Scan(&order.Number, &order.Status, &accrual, &order.UploadedAt)
 		if err != nil {
-			fmt.Println("&&&&& rows.Scan", err)
 			return nil, err
 		}
 
@@ -102,7 +99,6 @@ func (s *Storage) ListOrders(ctx context.Context, login string) ([]model.Order, 
 
 	err = rows.Err()
 	if err != nil {
-		fmt.Println("&&&&& rows.Err", err)
 		return nil, err
 	}
 

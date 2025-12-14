@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 
@@ -35,7 +34,6 @@ func (h *Handler) loadOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println("##########", login, currentLogin, order)
 	switch {
 	case currentLogin == "":
 		writeText(w, http.StatusAccepted, "новый номер заказа принят в обработку")
@@ -73,7 +71,6 @@ func (h *Handler) listOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println("$$$$$$", login, len(list))
 	if len(list) == 0 {
 		writeError(w, custerror.New(http.StatusNoContent, ""))
 		return

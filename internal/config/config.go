@@ -1,9 +1,7 @@
 package config
 
 import (
-	"encoding/json"
 	"flag"
-	"fmt"
 
 	"github.com/caarlos0/env/v11"
 )
@@ -32,7 +30,5 @@ func New() (*Config, error) {
 		return nil, err
 	}
 
-	b, _ := json.Marshal(cfg)
-	fmt.Println("@@@@@@@@@@@", string(b))
 	return cfg, nil
 }

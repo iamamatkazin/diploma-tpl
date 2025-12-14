@@ -36,7 +36,6 @@ func (a *Accrual) Get(ctx context.Context, order model.UserOrder) (data []byte, 
 		return nil, 0, err
 	}
 
-	fmt.Println("##########", url, code, string(data))
 	return data, code, nil
 }
 

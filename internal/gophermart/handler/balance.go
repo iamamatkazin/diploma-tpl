@@ -23,8 +23,6 @@ func (h *Handler) getBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	b, _ := json.Marshal(balance)
-	fmt.Println("########2222####", login, string(b))
 	writeJSON(w, http.StatusOK, balance)
 
 	/*

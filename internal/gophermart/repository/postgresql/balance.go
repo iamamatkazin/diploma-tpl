@@ -3,8 +3,6 @@ package postgresql
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -57,10 +55,6 @@ func (s *Storage) WithdrawBalance(ctx context.Context, login string, withdraw mo
 		return 0, err
 	}
 
-	b, _ := json.Marshal(balance)
-	b1, _ := json.Marshal(withdraw)
-	fmt.Println("@@@WithdrawBalance@@@", string(b), string(b1))
-
 	if balance.Current < withdraw.Sum {
 		return http.StatusPaymentRequired, nil
 	}
@@ -69,7 +63,7 @@ func (s *Storage) WithdrawBalance(ctx context.Context, login string, withdraw mo
 		return 0, err
 	}
 
-	if err := updateOrderSum(ctx, tx, withdraw); err != nil {
+	if err := updateOrderSum(ctx, tx, login, withdraw); err != nil {
 		return 0, err
 	}
 
@@ -78,15 +72,16 @@ func (s *Storage) WithdrawBalance(ctx context.Context, login string, withdraw mo
 	return http.StatusOK, nil
 }
 
-func updateOrderSum(ctx context.Context, tx *sql.Tx, withdraw model.Withdraw) error {
+func updateOrderSum(ctx context.Context, tx *sql.Tx, login string, withdraw model.Withdraw) error {
 	query := `
-		UPDATE orders SET 
-			sum = $2,
-			processed_at =$3
-    	WHERE number = $1
+		INSERT INTO orders (number, login, status, sum, uploaded_at, processed_at)
+		VALUES ($1, $2, $3, $4, $5, $5)
+		ON CONFLICT (number) DO UPDATE SET
+			sum = $4,
+			processed_at =$5
 	`
-
-	return retryableExec(ctx, tx, query, withdraw.Order, withdraw.Sum, time.Now().Local())
+	sum := withdraw.Sum * 100
+	return retryableExec(ctx, tx, query, withdraw.Order, login, model.New, sum, time.Now().Local())
 }
 
 func updateBalance(ctx context.Context, tx *sql.Tx, login string, sum float64) error {
@@ -114,7 +109,7 @@ func (s *Storage) ListWithdrawals(ctx context.Context, login string) ([]model.Wi
 
 	query := `
 		SELECT number, sum, processed_at FROM orders
-		WHERE login = $1
+		WHERE login = $1 AND sum > 0
 	`
 
 	rows, err := retryableQuery(ctx, tx, query, login)
@@ -129,7 +124,6 @@ func (s *Storage) ListWithdrawals(ctx context.Context, login string) ([]model.Wi
 		var order model.Withdraw
 		err = rows.Scan(&order.Order, &sum, &date)
 		if err != nil {
-			fmt.Println("!!!ListWithdrawals rows.Scan!!!", err)
 			return nil, err
 		}
 
@@ -144,11 +138,8 @@ func (s *Storage) ListWithdrawals(ctx context.Context, login string) ([]model.Wi
 		orders = append(orders, order)
 	}
 
-	b, _ := json.Marshal(orders)
-	fmt.Println("!!!ListWithdrawals!!!", string(b))
 	err = rows.Err()
 	if err != nil {
-		fmt.Println("!!!ListWithdrawals rows.Err!!!", err)
 		return nil, err
 	}
 
