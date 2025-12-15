@@ -2,10 +2,12 @@ package handler
 
 import (
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/ShiraazMoollatjie/goluhn"
 
+	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/model"
 	"github.com/iamamatkazin/diploma-tpl/internal/pkg/custerror"
 )
 
@@ -37,6 +39,12 @@ func (h *Handler) loadOrder(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case currentLogin == "":
 		writeText(w, http.StatusAccepted, "новый номер заказа принят в обработку")
+
+		select {
+		case h.chOrder <- model.UserOrder{Login: login, Order: order}:
+		default:
+			slog.Info("Занят канал отправки заказа в систему расчета начислений")
+		}
 
 	case currentLogin == login:
 		writeText(w, http.StatusOK, "номер заказа уже был загружен этим пользователем")

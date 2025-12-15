@@ -6,7 +6,7 @@ import (
 	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/model"
 )
 
-func (s *Storage) loadUnprocessedOrders(ctx context.Context) ([]model.UserOrder, error) {
+func (s *Storage) LoadUnprocessedOrders(ctx context.Context) ([]model.UserOrder, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err

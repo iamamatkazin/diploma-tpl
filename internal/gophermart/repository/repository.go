@@ -19,6 +19,8 @@ type Storager interface {
 	ListWithdrawals(ctx context.Context, login string) ([]model.Withdraw, error)
 	LoginUser(ctx context.Context, login model.Login) (*model.Login, error)
 	RegisterUser(ctx context.Context, login model.Login) (*model.Login, error)
+	UpdateOrder(ctx context.Context, accrual model.Accrual, order model.UserOrder) error
+	LoadUnprocessedOrders(ctx context.Context) ([]model.UserOrder, error)
 	Shutdown()
 }
 
@@ -27,13 +29,9 @@ type Storage struct {
 	stor Storager
 }
 
-func New(ctx context.Context, cfg *config.Config) (*Storage, error) {
+func New(ctx context.Context, cfg *config.Config, chOrder chan model.UserOrder) (*Storage, error) {
 	dbStor, err := postgresql.New(cfg)
 	if err != nil {
-		return nil, err
-	}
-
-	if err = dbStor.Run(ctx); err != nil {
 		return nil, err
 	}
 
@@ -67,6 +65,14 @@ func (s *Storage) WithdrawBalance(ctx context.Context, login string, withdraw mo
 
 func (s *Storage) ListWithdrawals(ctx context.Context, login string) ([]model.Withdraw, error) {
 	return s.stor.ListWithdrawals(ctx, login)
+}
+
+func (s *Storage) UpdateOrder(ctx context.Context, accrual model.Accrual, order model.UserOrder) error {
+	return s.stor.UpdateOrder(ctx, accrual, order)
+}
+
+func (s *Storage) LoadUnprocessedOrders(ctx context.Context) ([]model.UserOrder, error) {
+	return s.stor.LoadUnprocessedOrders(ctx)
 }
 
 func (s *Storage) LoginUser(ctx context.Context, login model.Login) (*model.Login, error) {

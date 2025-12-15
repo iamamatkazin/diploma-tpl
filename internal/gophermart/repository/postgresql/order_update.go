@@ -7,7 +7,7 @@ import (
 	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/model"
 )
 
-func (s *Storage) updateOrder(ctx context.Context, accrual model.Accrual, order model.UserOrder) error {
+func (s *Storage) UpdateOrder(ctx context.Context, accrual model.Accrual, order model.UserOrder) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err

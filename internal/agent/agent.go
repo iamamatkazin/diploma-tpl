@@ -1,4 +1,4 @@
-package accrual
+package agent
 
 import (
 	"context"
@@ -13,13 +13,13 @@ import (
 
 const timeout = time.Second * 5
 
-type Accrual struct {
+type Agent struct {
 	client *http.Client
 	cfg    *config.Config
 }
 
-func New(cfg *config.Config) *Accrual {
-	return &Accrual{
+func New(cfg *config.Config) *Agent {
+	return &Agent{
 		cfg: cfg,
 		client: &http.Client{
 			Timeout:   timeout,
@@ -28,7 +28,7 @@ func New(cfg *config.Config) *Accrual {
 	}
 }
 
-func (a *Accrual) Get(ctx context.Context, order model.UserOrder) (data []byte, code int, err error) {
+func (a *Agent) Get(ctx context.Context, order model.UserOrder) (data []byte, code int, err error) {
 	url := fmt.Sprintf("%s/api/orders/%s", a.cfg.AccAddress, order.Order)
 
 	data, code, err = a.get(ctx, url, "application/json")
@@ -39,7 +39,7 @@ func (a *Accrual) Get(ctx context.Context, order model.UserOrder) (data []byte, 
 	return data, code, nil
 }
 
-func (a *Accrual) get(ctx context.Context, url, contentType string) (data []byte, code int, err error) {
+func (a *Agent) get(ctx context.Context, url, contentType string) (data []byte, code int, err error) {
 	request, err := newRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return nil, 0, err

@@ -8,9 +8,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/iamamatkazin/diploma-tpl/internal/accrual"
 	"github.com/iamamatkazin/diploma-tpl/internal/config"
-	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/model"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
@@ -21,10 +19,8 @@ import (
 )
 
 type Storage struct {
-	cfg     *config.Config
-	db      *sql.DB
-	agent   *accrual.Accrual
-	chOrder chan model.UserOrder
+	cfg *config.Config
+	db  *sql.DB
 }
 
 func New(cfg *config.Config) (*Storage, error) {
@@ -40,10 +36,8 @@ func New(cfg *config.Config) (*Storage, error) {
 	loadMigrations(db)
 
 	return &Storage{
-		cfg:     cfg,
-		db:      db,
-		agent:   accrual.New(cfg),
-		chOrder: make(chan model.UserOrder),
+		cfg: cfg,
+		db:  db,
 	}, nil
 }
 

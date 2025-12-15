@@ -1,26 +1,24 @@
-package postgresql
+package accrual
 
 import (
 	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
-	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/common"
 	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/model"
 )
 
-type Accrual struct {
-	Order   string       `json:"order"`
-	Status  model.Status `json:"status"`
-	Accrual *float64     `json:"accrual,omitempty"`
-}
+func (a *Accrual) Run(ctx context.Context) error {
+	a.Add(1)
+	go func() {
+		defer a.Done()
+		a.worker(ctx)
+	}()
 
-func (s *Storage) Run(ctx context.Context) error {
-	go s.worker(ctx)
-
-	if err := s.restartPolling(ctx); err != nil {
+	if err := a.restartPolling(ctx); err != nil {
 		return err
 	}
 
@@ -30,23 +28,28 @@ func (s *Storage) Run(ctx context.Context) error {
 // Создаем воркер, который получает заказ и пытается для него получить расчет баллов.
 // Если баллы удалось рассчитать или расчет не возможен,
 // то заказ изменяет свои поля в базе данных.
-func (s *Storage) worker(ctx context.Context) {
+func (a *Accrual) worker(ctx context.Context) {
+	var wg sync.WaitGroup
+
 	for {
 		select {
 		case <-ctx.Done():
+			wg.Wait()
 			return
 
-		case userOrder := <-s.chOrder:
+		case userOrder := <-a.chOrder:
 			// что бы не реализовывать буфферезированный канал не понятно какого размера,
 			// сразу помещаем заказ в горутину, которая после получения расчета завершится сама.
+			wg.Add(1)
 			go func(order model.UserOrder) {
-				s.analyzeResponse(ctx, order)
+				defer wg.Done()
+				a.analyzeResponse(ctx, order)
 			}(userOrder)
 		}
 	}
 }
 
-func (s *Storage) analyzeResponse(ctx context.Context, order model.UserOrder) {
+func (a *Accrual) analyzeResponse(ctx context.Context, order model.UserOrder) {
 	timerPoll := time.NewTimer(0)
 	defer timerPoll.Stop()
 
@@ -56,7 +59,7 @@ func (s *Storage) analyzeResponse(ctx context.Context, order model.UserOrder) {
 			return
 
 		case <-timerPoll.C:
-			data, code, err := s.agent.Get(ctx, order)
+			data, code, err := a.agent.Get(ctx, order)
 			if err != nil {
 				slog.Error("Ошибка получения данных от системы расчета баллов", slog.Any("error", err))
 				timerPoll.Reset(time.Second)
@@ -65,19 +68,18 @@ func (s *Storage) analyzeResponse(ctx context.Context, order model.UserOrder) {
 
 			switch code {
 			case http.StatusOK:
-				var externalAccrual Accrual
-				if err := json.Unmarshal(data, &externalAccrual); err != nil {
+				var accrual model.Accrual
+				if err := json.Unmarshal(data, &accrual); err != nil {
 					slog.Error("Ошибка получения данных от системы расчета баллов", slog.Any("error", err))
 					return
 				}
 
-				accrual := model.Accrual{
-					Order:   externalAccrual.Order,
-					Status:  externalAccrual.Status,
-					Accrual: common.PtFloatToInt(externalAccrual.Accrual),
+				if accrual.Accrual != nil {
+					val := *accrual.Accrual * 100
+					accrual.Accrual = &val
 				}
 
-				if err := s.updateOrder(ctx, accrual, order); err != nil {
+				if err := a.storage.UpdateOrder(ctx, accrual, order); err != nil {
 					// в идеале функцию изменения данных нужно поместить в отдельный воркер,
 					// который будет пытаться до последнего сохранить данные в случае возникновения ошибки
 					slog.Error("Ошибка получения данных от системы расчета баллов", slog.Any("error", err))
@@ -103,14 +105,14 @@ func (s *Storage) analyzeResponse(ctx context.Context, order model.UserOrder) {
 
 // Запускаем опрос заказов, которые по какой-то причине еще не прошли систему
 // получения баллов.
-func (s *Storage) restartPolling(ctx context.Context) error {
-	list, err := s.loadUnprocessedOrders(ctx)
+func (a *Accrual) restartPolling(ctx context.Context) error {
+	list, err := a.storage.LoadUnprocessedOrders(ctx)
 	if err != nil {
 		return err
 	}
 
 	for _, item := range list {
-		s.chOrder <- item
+		a.chOrder <- item
 	}
 
 	return nil

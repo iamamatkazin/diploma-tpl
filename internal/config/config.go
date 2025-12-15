@@ -11,6 +11,7 @@ type Config struct {
 	Database   string `env:"DATABASE_URI"`
 	AccAddress string `env:"ACCRUAL_SYSTEM_ADDRESS"`
 	SecretKey  string
+	Algorithm  string
 }
 
 func New() (*Config, error) {
@@ -24,6 +25,7 @@ func New() (*Config, error) {
 		Database:   *database,
 		AccAddress: *accAddress,
 		SecretKey:  "SecretKey",
+		Algorithm:  "HS256",
 	}
 
 	if err := env.Parse(cfg); err != nil {

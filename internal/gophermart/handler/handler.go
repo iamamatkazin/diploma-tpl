@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -11,6 +12,8 @@ import (
 	"github.com/go-chi/jwtauth/v5"
 
 	"github.com/iamamatkazin/diploma-tpl/internal/config"
+	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/accrual"
+	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/model"
 	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/repository"
 	"github.com/iamamatkazin/diploma-tpl/internal/pkg/custerror"
 )
@@ -20,18 +23,29 @@ type Handler struct {
 	storage repository.Storager
 	Router  *chi.Mux
 	cfg     *config.Config
+	chOrder chan model.UserOrder
+	accr    *accrual.Accrual
 }
 
 func New(ctx context.Context, cfg *config.Config) (*Handler, error) {
-	storage, err := repository.New(ctx, cfg)
+	chOrder := make(chan model.UserOrder)
+
+	storage, err := repository.New(ctx, cfg, chOrder)
 	if err != nil {
+		return nil, err
+	}
+
+	accr := accrual.New(cfg, chOrder, storage)
+	if err = accr.Run(ctx); err != nil {
 		return nil, err
 	}
 
 	h := &Handler{
 		storage: storage,
 		cfg:     cfg,
-		token:   jwtauth.New("HS256", []byte(cfg.SecretKey), nil),
+		token:   jwtauth.New(cfg.Algorithm, []byte(cfg.SecretKey), nil),
+		chOrder: chOrder,
+		accr:    accr,
 	}
 
 	h.Router = chi.NewRouter()
@@ -68,6 +82,7 @@ func (h *Handler) listRoute() {
 }
 
 func (h *Handler) Shutdown() {
+	h.accr.Wait()
 	h.storage.Shutdown()
 }
 
@@ -126,5 +141,10 @@ func (h *Handler) getLogin(r *http.Request) (string, error) {
 		return "", err
 	}
 
-	return claims["login"].(string), nil
+	val, ok := claims["login"].(string)
+	if !ok {
+		return "", fmt.Errorf("токен не содержит информацию о пользователе")
+	}
+
+	return val, nil
 }

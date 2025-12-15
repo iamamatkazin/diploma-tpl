@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log/slog"
 	"time"
 
 	"github.com/iamamatkazin/diploma-tpl/internal/gophermart/model"
@@ -26,11 +25,6 @@ func (s *Storage) LoadOrder(ctx context.Context, login, order string) (currentLo
 
 	tx.Commit()
 
-	select {
-	case s.chOrder <- model.UserOrder{Login: login, Order: order}:
-	default:
-		slog.Info("Занят канал отправки заказа в систему расчета начислений")
-	}
 	return currentLogin, nil
 }
 

@@ -48,12 +48,12 @@ func main() {
 
 	select {
 	case <-quit:
+		cancel()
 		handler.Shutdown()
 
 		if err := server.Shutdown(ctx); err != nil {
 			slog.Error("Ошибка остановки сервера:", slog.Any("error", err))
 		}
-		cancel()
 
 	case <-exit:
 		os.Exit(2)
